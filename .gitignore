@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Env (IMPORTANT)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+pnpm-debug.log*
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Cache
+.vite
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local scripts
+start.bat
