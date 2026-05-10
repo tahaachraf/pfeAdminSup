@@ -3,19 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Box, ShoppingCart, DollarSign, Users, Truck, Folder, Tag, Layers, FileText } from "lucide-react";
 
 export default function Dashboard() {
-  const { products, orders, payments, users, suppliers, categories, brands, modeles, quotes } = useData();
+  const { products, orders, users, suppliers, categories, brands, modeles } = useData();
 
-  const totalProducts = products.length;
-  const totalOrders = orders.length;
-  const totalRevenue = payments
-    .filter((p) => p.statut === "valide")
-    .reduce((sum, p) => sum + p.montant, 0);
-  const totalClients = users.filter((u) => u.role === "client").length;
-  const totalSuppliers = suppliers.length;
+  const pendingOrders   = orders.filter((o) => o.statut === "En attente");
+  const confirmedOrders = orders.filter((o) => o.statut !== "En attente");
+
+  const totalProducts   = products.length;
+  const totalOrders     = confirmedOrders.length;
+  const totalQuotes     = pendingOrders.length;
+  const totalRevenue    = confirmedOrders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const totalClients    = users.filter((u) => u.role === "client").length;
+  const totalSuppliers  = suppliers.length;
   const totalCategories = categories.length;
-  const totalBrands = brands.length;
-  const totalModeles = modeles.length;
-  const totalQuotes = quotes.length;
+  const totalBrands     = brands.length;
+  const totalModeles    = modeles.length;
 
   const stats = [
     {

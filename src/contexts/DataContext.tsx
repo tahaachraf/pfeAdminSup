@@ -129,8 +129,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refreshOrders = async () => {
     setOrdersLoading(true);
     try {
-      const data = await api.get<Order[]>("/commandes");
-      setOrders(data);
+      const data = await api.get<any[]>("/commandes");
+      const normalized: Order[] = data.map((d) => {
+        const clientId = d.clientId;
+        const nomClient =
+          clientId && typeof clientId === "object"
+            ? `${clientId.nom ?? ""} ${clientId.prenom ?? ""}`.trim() || clientId.email || "—"
+            : "—";
+        return {
+          _id: d._id,
+          client: nomClient,
+          total: d.total ?? 0,
+          statut: d.statut ?? "—",
+          dateCommande: d.dateCommande ? d.dateCommande.substring(0, 10) : "—",
+        };
+      });
+      setOrders(normalized);
     } catch {
       // API non disponible
     } finally {

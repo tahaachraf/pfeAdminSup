@@ -6,11 +6,10 @@ import { Search, Loader2 } from "lucide-react";
 import { generateNumeroCommande } from "@/lib/utils";
 
 const statutBadge: Record<string, string> = {
-  "En attente":    "bg-yellow-50 text-yellow-700",
-  "Confirmée":     "bg-blue-50 text-blue-700",
-  "En livraison":  "bg-indigo-50 text-indigo-700",
-  "Livrée":        "bg-green-50 text-green-700",
-  "Annulée":       "bg-red-50 text-red-700",
+  "Confirmée":    "bg-blue-50 text-blue-700",
+  "Expédiée":     "bg-indigo-50 text-indigo-700",
+  "Livrée":       "bg-green-50 text-green-700",
+  "Annulée":      "bg-red-50 text-red-700",
 };
 
 export default function CommandesList() {
@@ -18,19 +17,19 @@ export default function CommandesList() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
 
-  const filtered = orders.filter((o) =>
-    generateNumeroCommande(orders, o._id).toLowerCase().includes(search.toLowerCase()) ||
+  const confirmedOrders = orders.filter((o) => o.statut !== "En attente");
+
+  const filtered = confirmedOrders.filter((o) =>
+    generateNumeroCommande(confirmedOrders, o._id).toLowerCase().includes(search.toLowerCase()) ||
     o.client.toLowerCase().includes(search.toLowerCase()) ||
     o.statut.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Commandes</h1>
-          <p className="text-muted-foreground mt-2">Gérez les commandes de vos clients.</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Commandes</h1>
+        <p className="text-muted-foreground mt-2">Commandes confirmées de vos clients.</p>
       </div>
 
       <div className="relative max-w-sm">
@@ -57,7 +56,6 @@ export default function CommandesList() {
               <TableRow>
                 <TableHead>N° Commande</TableHead>
                 <TableHead>Client</TableHead>
-                <TableHead className="text-center">Produits</TableHead>
                 <TableHead className="text-right">Total (DT)</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Date</TableHead>
@@ -66,14 +64,13 @@ export default function CommandesList() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Aucune commande trouvée.
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Aucune commande confirmée.
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((o) => {
-                  const numero = generateNumeroCommande(orders, o._id);
-                  const nbProduits = o.produits?.length ?? "—";
+                  const numero = generateNumeroCommande(confirmedOrders, o._id);
                   return (
                     <TableRow key={o._id} className="hover:bg-slate-50 transition-colors">
                       <TableCell>
@@ -86,11 +83,6 @@ export default function CommandesList() {
                         </button>
                       </TableCell>
                       <TableCell className="font-medium">{o.client}</TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
-                          {nbProduits}
-                        </span>
-                      </TableCell>
                       <TableCell className="text-right font-medium">
                         {o.total.toLocaleString("fr-TN")}
                       </TableCell>

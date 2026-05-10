@@ -1,6 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { useData } from "@/contexts/DataContext";
-import { ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -15,81 +15,90 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState, useEffect, useCallback } from "react";
-import { generateNumeroDevis } from "@/lib/utils";
+import { generateNumeroDevisFromOrder } from "@/lib/utils";
 import { api } from "@/lib/api";
 
-interface DevisInfo {
+interface CommandeRaw {
   _id: string;
-  client: string;
-  adminMarketing: string;
-  date: string;
+  clientId: { _id: string; nom: string; prenom: string; email: string } | string;
+  statut: string;
+  total: number;
+  dateCommande: string;
 }
 
-interface DevisProduitLigne {
+interface CommandeProduitLigne {
   _id: string;
+  id_commande: { _id: string } | string;
   id_produit: {
     _id: string;
     nom: string;
     reference?: string;
     prix?: number;
-    cout?: number;
-    categorie?: any;
   };
-  dateCreation?: string;
+  quantite: number;
+  prixUnitaire: number;
 }
 
-function normalizeDevisInfo(raw: any): DevisInfo {
-  const clientId = raw.clientId;
-  const adminId = raw.adminMarketingId;
-  const nomClient =
-    clientId && typeof clientId === "object"
-      ? `${clientId.nom ?? ""} ${clientId.prenom ?? ""}`.trim() || clientId.email || "—"
-      : "—";
-  const nomAdmin =
-    adminId && typeof adminId === "object"
-      ? `${adminId.nom ?? ""} ${adminId.prenom ?? ""}`.trim() || adminId.email || "—"
-      : "—";
-  return {
-    _id: raw._id,
-    client: nomClient,
-    adminMarketing: nomAdmin,
-    date: raw.dateDevis ? raw.dateDevis.substring(0, 10) : "—",
-  };
+function clientName(raw: CommandeRaw): string {
+  const c = raw.clientId;
+  if (c && typeof c === "object") {
+    return `${c.nom ?? ""} ${c.prenom ?? ""}`.trim() || c.email || "—";
+  }
+  return "—";
 }
 
 export default function DevisDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { quotes, products, categories } = useData();
+  const { orders, refreshOrders } = useData();
   const { toast } = useToast();
 
-  const [devis, setDevis] = useState<DevisInfo | null>(null);
-  const [lignes, setLignes] = useState<DevisProduitLigne[]>([]);
+  const [commande, setCommande] = useState<CommandeRaw | null>(null);
+  const [lignes, setLignes] = useState<CommandeProduitLigne[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
-  const fetchDevis = useCallback(async () => {
+  const pendingOrders = orders.filter((o) => o.statut === "En attente");
+  const numero = commande ? generateNumeroDevisFromOrder(pendingOrders, commande._id) : "…";
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [rawDevis, rawLignes] = await Promise.all([
-        api.get<any>(`/devis/${id}`),
-        api.get<any[]>(`/devis/${id}/devis-produits`),
+      const [rawCommande, allLignes] = await Promise.all([
+        api.get<CommandeRaw>(`/commandes/${id}`),
+        api.get<CommandeProduitLigne[]>("/commande-produits"),
       ]);
-      setDevis(normalizeDevisInfo(rawDevis));
-      setLignes(rawLignes ?? []);
+      setCommande(rawCommande);
+      setLignes(
+        allLignes.filter((l) => {
+          const cid = l.id_commande;
+          return typeof cid === "object" ? cid._id === id : cid === id;
+        })
+      );
     } catch {
-      const found = quotes.find((q) => q._id === id);
-      if (found) setDevis(found);
-      setLignes([]);
+      toast({ title: "Erreur", description: "Impossible de charger le devis", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [id, quotes]);
+  }, [id, toast]);
 
   useEffect(() => {
-    fetchDevis();
-  }, [fetchDevis]);
+    fetchData();
+  }, [fetchData]);
+
+  const handleConfirmer = async () => {
+    setConfirming(true);
+    try {
+      await api.patch(`/commandes/${id}`, { statut: "Confirmée" });
+      toast({ title: "Commande confirmée", description: "Le devis a été converti en commande." });
+      await refreshOrders();
+      setLocation("/devis");
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de confirmer la commande", variant: "destructive" });
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -100,13 +109,10 @@ export default function DevisDetail() {
     );
   }
 
-  if (!devis) {
+  if (!commande) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => setLocation("/devis")}
-          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-        >
+        <button onClick={() => setLocation("/devis")} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
           <ArrowLeft size={16} /> Retour aux devis
         </button>
         <p className="text-red-500">Devis non trouvé.</p>
@@ -114,46 +120,7 @@ export default function DevisDetail() {
     );
   }
 
-  const numero = generateNumeroDevis(quotes, devis._id);
-
-  const getCategoryName = (cat: any): string => {
-    if (!cat) return "—";
-    if (typeof cat === "object") return cat.nom ?? "—";
-    return categories.find((c) => c._id === cat)?.nom ?? "—";
-  };
-
-  const totalHT = lignes.reduce((sum, l) => sum + (l.id_produit?.prix ?? 0), 0);
-
-  const alreadyAdded = new Set(lignes.map((l) => l.id_produit?._id).filter(Boolean));
-  const availableToAdd = products.filter((p) => !alreadyAdded.has(p._id));
-
-  const handleAddProduct = async () => {
-    if (!selectedProductId) return;
-    setSaving(true);
-    try {
-      await api.post(`/devis-produits`, { id_devis: id, id_produit: selectedProductId });
-      await fetchDevis();
-      setSelectedProductId("");
-      toast({ title: "Succès", description: "Produit ajouté au devis" });
-    } catch {
-      toast({ title: "Erreur", description: "Impossible d'ajouter le produit", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemoveLine = async (devisProduitsId: string) => {
-    setSaving(true);
-    try {
-      await api.delete(`/devis-produits/${devisProduitsId}`);
-      await fetchDevis();
-      toast({ title: "Succès", description: "Produit retiré du devis" });
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de retirer le produit", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const totalCalcule = lignes.reduce((sum, l) => sum + l.quantite * l.prixUnitaire, 0);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -165,10 +132,40 @@ export default function DevisDetail() {
         >
           <ArrowLeft size={18} />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">{numero}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Consulter et gérer les produits du devis</p>
+          <p className="text-sm text-gray-500 mt-0.5">Devis — commande en attente de confirmation</p>
         </div>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              disabled={confirming}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg transition-colors"
+              data-testid="btn-confirmer"
+            >
+              {confirming ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+              Confirmer la commande
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmer ce devis ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Le devis {numero} sera converti en commande confirmée et n'apparaîtra plus dans la liste des devis.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmer}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Confirmer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -180,24 +177,24 @@ export default function DevisDetail() {
           </div>
           <div>
             <p className="text-gray-500 mb-1">Client</p>
-            <p className="font-medium text-gray-900">{devis.client}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 mb-1">Admin Marketing</p>
-            <p className="font-medium text-gray-900">{devis.adminMarketing}</p>
+            <p className="font-medium text-gray-900">{clientName(commande)}</p>
           </div>
           <div>
             <p className="text-gray-500 mb-1">Date</p>
-            <p className="font-medium text-gray-900">{devis.date}</p>
+            <p className="font-medium text-gray-900">{commande.dateCommande?.substring(0, 10) ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 mb-1">Statut</p>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700">
+              En attente
+            </span>
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">
-            Produits ({lignes.length})
-          </h2>
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Produits ({lignes.length})</h2>
         </div>
 
         <Table>
@@ -205,9 +202,9 @@ export default function DevisDetail() {
             <TableRow>
               <TableHead>Référence</TableHead>
               <TableHead>Produit</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead className="text-right">Prix (DT)</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="text-center">Qté</TableHead>
+              <TableHead className="text-right">Prix unitaire (DT)</TableHead>
+              <TableHead className="text-right">Sous-total (DT)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -221,48 +218,17 @@ export default function DevisDetail() {
               lignes.map((ligne) => {
                 const prod = ligne.id_produit;
                 return (
-                  <TableRow key={ligne._id} data-testid={`row-qp-${ligne._id}`}>
+                  <TableRow key={ligne._id} data-testid={`row-dp-${ligne._id}`}>
                     <TableCell className="font-mono text-xs text-gray-500">
                       {prod?.reference ?? "—"}
                     </TableCell>
                     <TableCell className="font-medium text-gray-900">
                       {prod?.nom ?? <span className="text-red-400 italic">Produit introuvable</span>}
                     </TableCell>
-                    <TableCell className="text-gray-500 text-sm">
-                      {getCategoryName(prod?.categorie)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {prod?.prix != null ? prod.prix.toLocaleString("fr-TN") : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button
-                            disabled={saving}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                            data-testid={`btn-remove-${ligne._id}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Retirer ce produit ?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Le produit sera retiré du devis {numero}.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleRemoveLine(ligne._id)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              Retirer
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                    <TableCell className="text-center font-medium">{ligne.quantite}</TableCell>
+                    <TableCell className="text-right">{ligne.prixUnitaire.toLocaleString("fr-TN")}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {(ligne.quantite * ligne.prixUnitaire).toLocaleString("fr-TN")}
                     </TableCell>
                   </TableRow>
                 );
@@ -271,40 +237,12 @@ export default function DevisDetail() {
           </TableBody>
         </Table>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <p className="text-sm font-medium text-gray-700 mb-2">Ajouter un produit</p>
-          <div className="flex gap-2">
-            <select
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              data-testid="select-add-product"
-            >
-              <option value="">-- Sélectionner un produit --</option>
-              {availableToAdd.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.reference ?? p._id.slice(-6)} — {p.nom}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleAddProduct}
-              disabled={!selectedProductId || saving}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg transition-colors"
-              data-testid="btn-add-product"
-            >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Ajouter
-            </button>
-          </div>
-        </div>
-
         {lignes.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
             <div className="text-right">
-              <p className="text-sm text-gray-500">Total HT</p>
+              <p className="text-sm text-gray-500">Total</p>
               <p className="text-xl font-bold text-gray-900">
-                {totalHT.toLocaleString("fr-TN")} DT
+                {totalCalcule.toLocaleString("fr-TN")} DT
               </p>
             </div>
           </div>

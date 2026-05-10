@@ -57,6 +57,27 @@ export function generateNumeroCommande(
 }
 
 /**
+ * Génère un numéro de devis DEV-YYYY-NNN à partir d'une liste de commandes "En attente".
+ * Utilise dateCommande comme clé de tri.
+ */
+export function generateNumeroDevisFromOrder(
+  pendingOrders: { _id: string; dateCommande: string }[],
+  orderId: string
+): string {
+  const sorted = [...pendingOrders].sort((a, b) => {
+    if (a.dateCommande !== b.dateCommande) return a.dateCommande.localeCompare(b.dateCommande);
+    return a._id.localeCompare(b._id);
+  });
+  const index = sorted.findIndex((o) => o._id === orderId);
+  if (index === -1) return `DEV-${orderId.slice(-6).toUpperCase()}`;
+  const year =
+    pendingOrders.find((o) => o._id === orderId)?.dateCommande?.substring(0, 4) ??
+    new Date().getFullYear();
+  const seq = String(index + 1).padStart(3, "0");
+  return `DEV-${year}-${seq}`;
+}
+
+/**
  * Génère un numéro d'utilisateur lisible depuis l'_id, sans modifier la base de données.
  * Les utilisateurs sont triés par dateCreation puis par _id pour un ordre stable.
  * Exemple : USR-2026-001
