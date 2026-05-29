@@ -1,21 +1,14 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLocation } from "wouter";
+import { Redirect } from "wouter";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    if (!user) {
-      setLocation("/login");
-    }
-  }, [user, setLocation]);
 
   if (!user) {
-    return null;
+    return <Redirect to="/login" />;
   }
 
   return (

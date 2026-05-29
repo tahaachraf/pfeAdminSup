@@ -1,19 +1,8 @@
 import { useParams, useLocation } from "wouter";
 import { useData } from "@/contexts/DataContext";
-import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { useState, useEffect, useCallback } from "react";
 import { generateNumeroDevisFromOrder } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -50,14 +39,12 @@ function clientName(raw: CommandeRaw): string {
 export default function DevisDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { orders, refreshOrders } = useData();
+  const { orders } = useData();
   const { toast } = useToast();
 
   const [commande, setCommande] = useState<CommandeRaw | null>(null);
   const [lignes, setLignes] = useState<CommandeProduitLigne[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
-
   const pendingOrders = orders.filter((o) => o.statut === "En attente");
   const numero = commande ? generateNumeroDevisFromOrder(pendingOrders, commande._id) : "…";
 
@@ -68,37 +55,34 @@ export default function DevisDetail() {
         api.get<CommandeRaw>(`/commandes/${id}`),
         api.get<CommandeProduitLigne[]>("/commande-produits"),
       ]);
+
+      const lignesFiltrees = allLignes.filter((l) => {
+        const cid = l.id_commande;
+        return typeof cid === "object" ? cid._id === id : cid === id;
+      });
+
+      if (lignesFiltrees.length === 0) {
+        await api.delete(`/commandes/${id}`);
+        toast({
+          title: "Devis supprimé",
+          description: "Ce devis ne contenait aucun produit et a été supprimé automatiquement.",
+        });
+        setLocation("/devis");
+        return;
+      }
+
       setCommande(rawCommande);
-      setLignes(
-        allLignes.filter((l) => {
-          const cid = l.id_commande;
-          return typeof cid === "object" ? cid._id === id : cid === id;
-        })
-      );
+      setLignes(lignesFiltrees);
     } catch {
       toast({ title: "Erreur", description: "Impossible de charger le devis", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [id, toast]);
+  }, [id, toast, setLocation]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const handleConfirmer = async () => {
-    setConfirming(true);
-    try {
-      await api.patch(`/commandes/${id}`, { statut: "Confirmée" });
-      toast({ title: "Commande confirmée", description: "Le devis a été converti en commande." });
-      await refreshOrders();
-      setLocation("/devis");
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de confirmer la commande", variant: "destructive" });
-    } finally {
-      setConfirming(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -137,35 +121,6 @@ export default function DevisDetail() {
           <p className="text-sm text-gray-500 mt-0.5">Devis — commande en attente de confirmation</p>
         </div>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button
-              disabled={confirming}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg transition-colors"
-              data-testid="btn-confirmer"
-            >
-              {confirming ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-              Confirmer la commande
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmer ce devis ?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Le devis {numero} sera converti en commande confirmée et n'apparaîtra plus dans la liste des devis.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmer}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                Confirmer
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

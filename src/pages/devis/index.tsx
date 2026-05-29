@@ -1,24 +1,78 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useData } from "@/contexts/DataContext";
 import { useLocation } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Loader2 } from "lucide-react";
 import { generateNumeroDevisFromOrder } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface CommandeProduitLigne {
+  _id: string;
+  id_commande: { _id: string } | string;
+}
 
 export default function DevisList() {
-  const { orders, ordersLoading } = useData();
+  const { orders, ordersLoading, refreshOrders } = useData();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [validIds, setValidIds] = useState<Set<string> | null>(null);
+  const [cleaning, setCleaning] = useState(false);
+
+  const cleanEmptyDevis = useCallback(async () => {
+    if (ordersLoading) return;
+    setCleaning(true);
+    try {
+      const allLignes = await api.get<CommandeProduitLigne[]>("/commande-produits");
+
+      const pendingOrders = orders.filter((o) => o.statut === "En attente");
+
+      const idsWithProducts = new Set(
+        allLignes.map((l) => {
+          const cid = l.id_commande;
+          return typeof cid === "object" ? cid._id : cid;
+        })
+      );
+
+      const toDelete = pendingOrders.filter((o) => !idsWithProducts.has(o._id));
+
+      if (toDelete.length > 0) {
+        await Promise.all(toDelete.map((o) => api.delete(`/commandes/${o._id}`)));
+        await refreshOrders();
+        toast({
+          title: `${toDelete.length} devis supprimé${toDelete.length > 1 ? "s" : ""}`,
+          description: "Les devis sans produit ont été supprimés automatiquement.",
+        });
+      }
+
+      setValidIds(idsWithProducts);
+    } catch {
+      setValidIds(new Set());
+    } finally {
+      setCleaning(false);
+    }
+  }, [orders, ordersLoading, refreshOrders, toast]);
+
+  useEffect(() => {
+    cleanEmptyDevis();
+  }, [ordersLoading]);
 
   const pendingOrders = orders.filter((o) => o.statut === "En attente");
+  const displayOrders =
+    validIds === null
+      ? []
+      : pendingOrders.filter((o) => validIds.has(o._id));
 
-  const filtered = pendingOrders.filter((o) => {
+  const filtered = displayOrders.filter((o) => {
     const num = generateNumeroDevisFromOrder(pendingOrders, o._id).toLowerCase();
     return (
       num.includes(search.toLowerCase()) ||
       o.client.toLowerCase().includes(search.toLowerCase())
     );
   });
+
+  const isLoading = ordersLoading || cleaning || validIds === null;
 
   return (
     <div className="space-y-6">
@@ -40,7 +94,7 @@ export default function DevisList() {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        {ordersLoading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 size={24} className="animate-spin mr-2" />
             Chargement des devis…

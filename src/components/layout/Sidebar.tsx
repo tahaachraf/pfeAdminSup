@@ -10,7 +10,6 @@ import {
   Tag,
   Layers,
   FileText,
-  CreditCard,
   LogOut,
 } from "lucide-react";
 
@@ -27,7 +26,6 @@ export function Sidebar() {
     { href: "/marques", label: "Marques", icon: Tag },
     { href: "/modeles", label: "Modèles", icon: Layers },
     { href: "/devis", label: "Devis", icon: FileText },
-    { href: "/paiements", label: "Paiements", icon: CreditCard },
   ];
 
   return (

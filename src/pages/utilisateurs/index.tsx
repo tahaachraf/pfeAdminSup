@@ -49,9 +49,9 @@ export default function UtilisateursList() {
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     const matchSearch =
-      u.nom.toLowerCase().includes(q) ||
-      u.prenom.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
+      (u.nom ?? "").toLowerCase().includes(q) ||
+      (u.prenom ?? "").toLowerCase().includes(q) ||
+      (u.email ?? "").toLowerCase().includes(q) ||
       (u._id && generateNumeroUtilisateur(users, u._id).toLowerCase().includes(q));
     return matchSearch && matchesFilter(u.role, activeFilter);
   });
@@ -159,9 +159,9 @@ export default function UtilisateursList() {
                           {numero}
                         </span>
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{u.nom}</TableCell>
-                      <TableCell>{u.prenom}</TableCell>
-                      <TableCell className="text-gray-500">{u.email}</TableCell>
+                      <TableCell className="font-medium text-gray-900">{u.nom || <span className="text-gray-300 italic">—</span>}</TableCell>
+                      <TableCell>{u.prenom || <span className="text-gray-300 italic">—</span>}</TableCell>
+                      <TableCell className="text-gray-500">{u.email || <span className="text-gray-300 italic">—</span>}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleBadge[u.role] ?? "bg-gray-100 text-gray-700"}`}>
                           {roleLabel[u.role] ?? u.role}

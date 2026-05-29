@@ -8,8 +8,6 @@ import {
   Brand,
   Modele,
   Quote,
-  Payment,
-  initialPayments,
 } from "@/data/mockData";
 import { api } from "@/lib/api";
 
@@ -43,8 +41,6 @@ interface DataContextType {
   setQuotes: React.Dispatch<React.SetStateAction<Quote[]>>;
   quotesLoading: boolean;
   refreshQuotes: () => Promise<void>;
-  payments: Payment[];
-  setPayments: React.Dispatch<React.SetStateAction<Payment[]>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -74,7 +70,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
 
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
 
   const refreshProducts = async () => {
     setProductsLoading(true);
@@ -261,8 +256,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setQuotes,
         quotesLoading,
         refreshQuotes,
-        payments,
-        setPayments,
       }}
     >
       {children}

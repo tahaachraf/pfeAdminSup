@@ -26,7 +26,6 @@ import ModelesList from "@/pages/modeles/index";
 import ModeleForm from "@/pages/modeles/form";
 import DevisList from "@/pages/devis/index";
 import DevisDetail from "@/pages/devis/detail";
-import PaiementsList from "@/pages/paiements/index";
 
 const queryClient = new QueryClient();
 
@@ -68,8 +67,6 @@ function Router() {
             <Route path="/modeles" component={ModelesList} />
             <Route path="/devis/:id" component={DevisDetail} />
             <Route path="/devis" component={DevisList} />
-            <Route path="/paiements" component={PaiementsList} />
-            
             <Route component={NotFound} />
           </Switch>
         </Layout>
