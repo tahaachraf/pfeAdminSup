@@ -34,6 +34,7 @@ export default function UtilisateurForm() {
     nom: "",
     prenom: "",
     email: "",
+    motDePasse: "",
     role: "client"
   });
 
@@ -67,6 +68,7 @@ export default function UtilisateurForm() {
           nom: formData.nom,
           prenom: formData.prenom,
           email: formData.email,
+          motDePasse: formData.motDePasse,
           role: formData.role,
         });
         toast({ title: "Succès", description: "Utilisateur créé avec succès" });
@@ -136,6 +138,11 @@ export default function UtilisateurForm() {
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
             <Input id="email" name="email" type="email" value={formData.email ?? ""} onChange={handleChange} required data-testid="input-email" />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="motDePasse">Mot de passe *</Label>
+            <Input id="motDePasse" name="motDePasse" type="password" value={formData.motDePasse ?? ""} onChange={handleChange} required data-testid="input-motDePasse" />
           </div>
 
           <div className="space-y-2">
