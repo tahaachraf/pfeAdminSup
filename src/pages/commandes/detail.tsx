@@ -87,7 +87,7 @@ export default function CommandeDetail() {
   const handleChangeStatut = async (statut: string) => {
     setSaving(true);
     try {
-      await api.patch(`/commandes/${id}`, { statut });
+      await api.put(`/commandes/${id}`, { statut });
       setCommande((prev) => (prev ? { ...prev, statut } : prev));
       await refreshOrders();
       toast({ title: "Succès", description: `Statut mis à jour : ${statut}` });
